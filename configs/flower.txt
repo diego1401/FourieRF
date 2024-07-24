@@ -1,6 +1,6 @@
 
 dataset_name = llff
-datadir = ./data/nerf_llff_data/flower
+datadir = ../data/nerf_llff_data/flower
 expname =  tensorf_flower_VM
 basedir = ./log
 
@@ -16,7 +16,7 @@ upsamp_list = [2000,3000,4000,5500]
 update_AlphaMask_list = [2500]
 
 N_vis = -1 # vis all testing images
-vis_every = 10000
+vis_every = 1000
 
 render_test = 1
 render_path = 1

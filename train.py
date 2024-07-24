@@ -90,7 +90,7 @@ def reconstruction(args):
 
     # init dataset
     dataset = dataset_dict[args.dataset_name]
-    train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=False)
+    train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=False,number_of_views=args.number_of_views)
     test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True)
     white_bg = train_dataset.white_bg
     near_far = train_dataset.near_far
@@ -175,7 +175,7 @@ def reconstruction(args):
     pbar = tqdm(range(args.n_iters), miniters=args.progress_refresh_rate, file=sys.stdout)
     for iteration in pbar:
 
-        # if args.model_name in ['FourierTensorVMSplit']: tensorf.fourier_cap()
+        if args.model_name in ['FourierTensorVMSplit','FourierTensorVM']: tensorf.fourier_cap()
         
         ray_idx = trainingSampler.nextids()
         rays_train, rgb_train = allrays[ray_idx], allrgbs[ray_idx].to(device)

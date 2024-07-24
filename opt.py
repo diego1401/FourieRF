@@ -20,7 +20,7 @@ def config_parser(cmd=None):
     parser.add_argument('--downsample_test', type=float, default=1.0)
 
     parser.add_argument('--model_name', type=str, default='TensorVMSplit',
-                        choices=['TensorVMSplit', 'TensorCP','TensorFourierCP','FourierTensorVMSplit'])
+                        choices=['TensorVMSplit', 'TensorCP','TensorFourierCP','FourierTensorVMSplit','FourierTensorVM'])
 
     # loader options
     parser.add_argument("--batch_size", type=int, default=4096)
@@ -132,6 +132,9 @@ def config_parser(cmd=None):
     # Fourier options
     parser.add_argument("--increase_feature_cap_every", type=int, default=500,
                         help='Increase the frequency_cap every certain number of iterations')
+    parser.add_argument("--number_of_views", type=int, default=-1,
+                        help='Number of views used')
+    
 
 
     if cmd is not None:
