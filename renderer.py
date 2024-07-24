@@ -1,7 +1,7 @@
 import torch,os,imageio,sys
 from tqdm.auto import tqdm
 from dataLoader.ray_utils import get_rays
-from models.tensoRF import TensorVM, TensorCP, raw2alpha, TensorVMSplit, AlphaGridMask, TensorFourierCP
+from models.tensoRF import TensorVM, TensorCP, raw2alpha, TensorVMSplit, AlphaGridMask, TensorFourierCP, FourierTensorVMSplit
 from utils import *
 from dataLoader.ray_utils import ndc_rays_blender
 

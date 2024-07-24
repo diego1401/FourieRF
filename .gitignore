@@ -1,0 +1,8 @@
+#ignore folders
+__pycache__/*
+log/*
+configs/*
+#ignore files
+*.pyc
+*.png
+*.txt

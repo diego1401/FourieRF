@@ -61,8 +61,7 @@ class BlenderDataset(Dataset):
 
         img_eval_interval = 1 if self.N_vis < 0 else len(self.meta['frames']) // self.N_vis
         idxs = list(range(0, len(self.meta['frames']), img_eval_interval))
-        for i in tqdm(idxs, desc=f'Loading data {self.split} ({len(idxs)})'):#img_list:#
-
+        for i in tqdm(idxs, desc=f'Loading data {self.split} ({len(idxs)})'):
             frame = self.meta['frames'][i]
             pose = np.array(frame['transform_matrix']) @ self.blender2opencv
             c2w = torch.FloatTensor(pose)

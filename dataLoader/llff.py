@@ -209,7 +209,7 @@ class LLFFDataset(Dataset):
 
             img = Image.open(image_path).convert('RGB')
             if self.downsample != 1.0:
-                img = img.resize(self.img_wh, Image.LANCZOS)
+                img = img.resize((W,H), Image.LANCZOS)
             img = self.transform(img)  # (3, h, w)
 
             img = img.view(3, -1).permute(1, 0)  # (h*w, 3) RGB
