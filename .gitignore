@@ -6,3 +6,4 @@ configs/*
 *.pyc
 *.png
 *.txt
+*.sh
