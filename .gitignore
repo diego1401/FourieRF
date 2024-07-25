@@ -2,6 +2,7 @@
 __pycache__/*
 log/*
 configs/*
+debug/*
 #ignore files
 *.pyc
 *.png
