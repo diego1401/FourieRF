@@ -135,7 +135,8 @@ def reconstruction(args):
         tensorf = eval(args.model_name)(aabb, reso_cur, device,
                     density_n_comp=n_lamb_sigma, appearance_n_comp=n_lamb_sh, app_dim=args.data_dim_color, near_far=near_far,
                     shadingMode=args.shadingMode, alphaMask_thres=args.alpha_mask_thre, density_shift=args.density_shift, distance_scale=args.distance_scale,
-                    pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct)
+                    pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct,
+                    density_clip=args.color_clip,color_clip=args.color_clip)
 
 
     grad_vars = tensorf.get_optparam_groups(args.lr_init, args.lr_basis)
@@ -170,6 +171,9 @@ def reconstruction(args):
     TV_weight_density, TV_weight_app = args.TV_weight_density, args.TV_weight_app
     tvreg = TVLoss()
     print(f"initial TV_weight density: {TV_weight_density} appearance: {TV_weight_app}")
+    
+    Depth_reg_weight = args.Depth_weight
+    print(f"initial depth regularization weight {Depth_reg_weight}")
 
 
     pbar = tqdm(range(args.n_iters), miniters=args.progress_refresh_rate, file=sys.stdout)
@@ -185,10 +189,11 @@ def reconstruction(args):
                                 N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
 
         loss = torch.mean((rgb_map - rgb_train) ** 2)
-
-
-        # loss
-        total_loss = loss
+        total_loss = loss.clone()
+        
+        if Depth_reg_weight > 0: #occlusion loss
+            mask = depth_map<0.3
+            total_loss -= Depth_reg_weight * depth_map[mask].mean()
         if Ortho_reg_weight > 0:
             loss_reg = tensorf.vector_comp_diffs()
             total_loss += Ortho_reg_weight*loss_reg
@@ -311,7 +316,7 @@ if __name__ == '__main__':
 
     args = config_parser()
     print(args)
-
+    
     if  args.export_mesh:
         export_mesh(args)
 

@@ -54,6 +54,8 @@ def config_parser(cmd=None):
                         help='loss weight')
     parser.add_argument("--TV_weight_app", type=float, default=0.0,
                         help='loss weight')
+    parser.add_argument("--Depth_weight", type=float, default=0.0,
+                        help='loss weight')
     
     # model
     # volume options
@@ -134,6 +136,8 @@ def config_parser(cmd=None):
                         help='Increase the frequency_cap every certain number of iterations')
     parser.add_argument("--number_of_views", type=int, default=-1,
                         help='Number of views used')
+    parser.add_argument("--density_clip", type=float, default=100.0)
+    parser.add_argument("--color_clip", type=float, default=100.0)
     
 
 
