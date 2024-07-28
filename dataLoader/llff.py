@@ -199,11 +199,13 @@ class LLFFDataset(Dataset):
         average_pose = average_poses(self.poses)
         dists = np.sum(np.square(average_pose[:3, 3] - self.poses[:, :3, 3]), -1)
         i_test = np.arange(0, self.poses.shape[0], self.hold_every)  # [np.argmin(dists)]
-        img_list = i_test if self.split != 'train' else list(set(np.arange(len(self.poses))) - set(i_test))
+        # img_list = i_test if self.split != 'train' else list(set(np.arange(len(self.poses))) - set(i_test))
         if self.split == 'train' and self.number_of_views > 0: 
             # Code from Reg-NeRF
-            idx_sub = np.linspace(0, len(img_list) - 1, self.number_of_views) 
-            img_list = [round(i) for i in idx_sub]
+            idx_sub = np.linspace(0, len(i_test) - 1, self.number_of_views) 
+            img_list = [i_test[round(i)] for i in idx_sub]
+        else:
+            img_list = i_test
         # use first N_images-1 to train, the LAST is val
         self.all_rays = []
         self.all_rgbs = []

@@ -173,6 +173,9 @@ def reconstruction(args):
     print(f"initial TV_weight density: {TV_weight_density} appearance: {TV_weight_app}")
     
     Depth_reg_weight = args.Depth_weight
+    depth_cap = args.depth_cap
+    depth_delta = -depth_cap/10_000
+    
     print(f"initial depth regularization weight {Depth_reg_weight}")
 
 
@@ -191,8 +194,9 @@ def reconstruction(args):
         loss = torch.mean((rgb_map - rgb_train) ** 2)
         total_loss = loss.clone()
         
-        if Depth_reg_weight > 0: #occlusion loss
-            mask = depth_map<0.3
+        if Depth_reg_weight > 0 and depth_cap > 1e-5: #occlusion loss
+            depth_cap += depth_delta
+            mask = depth_map<depth_cap
             total_loss -= Depth_reg_weight * depth_map[mask].mean()
         if Ortho_reg_weight > 0:
             loss_reg = tensorf.vector_comp_diffs()
@@ -279,7 +283,9 @@ def reconstruction(args):
             optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
 
         if iteration % args.increase_feature_cap_every == 0 and iteration != 0:
-            if isinstance(tensorf,TensorFourierCP): tensorf.increase_frequency_cap()
+            if isinstance(tensorf,(TensorFourierCP,FourierTensorVM,FourierTensorVMSplit)): 
+                # we only limit the frequency the first 10k iterations
+                tensorf.increase_frequency_cap(max_number_of_iterations=10_000/args.increase_feature_cap_every)
         
 
     tensorf.save(f'{logfolder}/{args.expname}.th')

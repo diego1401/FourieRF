@@ -500,13 +500,10 @@ class TensorFourierCP(TensorBase):
         return self.frequency_cap[idx].item()
     
     @torch.no_grad()
-    def increase_frequency_cap(self):
+    def increase_frequency_cap(self, max_number_of_iterations):
         '''Function to increase the frequency cap of the fourier coefficients preserved after clipping.'''
-        # if self.get_frequency_cap() == (self.pre_fourier_density_line[0].shape[-2]//2 + 1): return
-        # old_line = self.get_line_coef()
-        # self.frequency_cap += 1
-        pass
-        # self.fourier_line_coef.data = old_line
+        raise ValueError("Not implemented")
+
 
     def set_frequency_cap_after_resolution_change(self,old_resolution, new_resolution):
         frequency_cap_ratio = self.frequency_cap / old_resolution
@@ -670,6 +667,9 @@ class FourierTensorVMSplit(TensorVMSplit):
 
         # Fourier Frequency Handler
         self.density_clip, self.color_clip = kargs['density_clip'],kargs['color_clip']
+        assert self.density_clip > 0 and self.color_clip > 0
+        assert self.density_clip <= 100.0 and self.color_clip <= 100.0
+        
         self.register_buffer('frequency_cap_density',torch.tensor([self.density_clip,self.density_clip,self.density_clip]))
         self.register_buffer('frequency_cap_color',torch.tensor([self.color_clip,self.color_clip,self.color_clip]))
         for i,size in enumerate(gridSize):
@@ -677,6 +677,11 @@ class FourierTensorVMSplit(TensorVMSplit):
             self.register_buffer(f'filtering_kernel_{self.vecMode[i]}',off_center_gaussian(gridSize[mat_id_1], gridSize[mat_id_0]))
             
         #TODO: Function visualize maps
+        
+    def increase_frequency_cap(self,max_number_of_iterations):
+        delta = (100.0 - self.density_clip)/max_number_of_iterations
+        self.frequency_cap_density = torch.clamp(self.frequency_cap_density+delta,0,100.0)
+        self.frequency_cap_color = torch.clamp(self.frequency_cap_color+delta,0,100.0)
         
 
     def fourier_cap(self):
@@ -850,6 +855,9 @@ class FourierTensorVM(TensorVM):
     def init_svd_volume(self, res, device):
         self.plane_coef, self.line_coef = self.init_one_svd(tuple(self.app_n_comp)+tuple(self.density_n_comp), self.gridSize, 0.1, device)
         self.basis_mat = torch.nn.Linear(sum(self.app_n_comp), self.app_dim, bias=False).to(device)
+        
+    def increase_frequency_cap(self,max_number_of_iterations):
+        raise ValueError("Not implemented")
 
     def init_one_svd(self, n_component, gridSize, scale, device):
         plane_coef, line_coef = [], []

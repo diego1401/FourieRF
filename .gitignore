@@ -3,8 +3,11 @@ __pycache__/*
 log/*
 configs/*
 debug/*
+log_4_downsampled/*
 #ignore files
+*.mp4
 *.pyc
 *.png
 *.txt
 *.sh
+*.out

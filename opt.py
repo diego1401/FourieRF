@@ -138,7 +138,8 @@ def config_parser(cmd=None):
                         help='Number of views used')
     parser.add_argument("--density_clip", type=float, default=100.0)
     parser.add_argument("--color_clip", type=float, default=100.0)
-    
+    parser.add_argument("--depth_cap", type=float, default=0.0,
+                        help='cap to apply depth loss')
 
 
     if cmd is not None:
