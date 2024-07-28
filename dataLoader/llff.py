@@ -202,8 +202,9 @@ class LLFFDataset(Dataset):
         # img_list = i_test if self.split != 'train' else list(set(np.arange(len(self.poses))) - set(i_test))
         if self.split == 'train' and self.number_of_views > 0: 
             # Code from Reg-NeRF
-            idx_sub = np.linspace(0, len(i_test) - 1, self.number_of_views) 
-            img_list = [i_test[round(i)] for i in idx_sub]
+            train_set = list(set(np.arange(len(self.poses))) - set(i_test))
+            idx_sub = np.linspace(0, len(train_set) - 1, self.number_of_views) 
+            img_list = [train_set[round(i)] for i in idx_sub]
         else:
             img_list = i_test
         # use first N_images-1 to train, the LAST is val
