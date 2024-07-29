@@ -108,12 +108,14 @@ def reconstruction(args):
     else:
         logfolder = f'{args.basedir}/{args.expname}'
     
-
+    is_fourier_model = args.model_name in ['FourierTensorVMSplit','FourierTensorVM']
     # init log file
     os.makedirs(logfolder, exist_ok=True)
     os.makedirs(f'{logfolder}/imgs_vis', exist_ok=True)
     os.makedirs(f'{logfolder}/imgs_rgba', exist_ok=True)
     os.makedirs(f'{logfolder}/rgba', exist_ok=True)
+    if is_fourier_model:
+        os.makedirs(f'{logfolder}/feature_maps', exist_ok=True)
     summary_writer = SummaryWriter(logfolder)
 
 
@@ -148,7 +150,7 @@ def reconstruction(args):
 
     print("lr decay", args.lr_decay_target_ratio, args.lr_decay_iters)
     
-    optimizer = torch.optim.Adam(grad_vars, betas=(0.9,0.99))
+    optimizer = torch.optim.AdamW(grad_vars, betas=(0.9,0.99))
 
 
     #linear in logrithmic space
@@ -174,7 +176,7 @@ def reconstruction(args):
     
     Depth_reg_weight = args.Depth_weight
     depth_cap = args.depth_cap
-    depth_delta = -depth_cap/10_000
+    depth_delta = -depth_cap/1000
     
     print(f"initial depth regularization weight {Depth_reg_weight}")
 
@@ -182,7 +184,7 @@ def reconstruction(args):
     pbar = tqdm(range(args.n_iters), miniters=args.progress_refresh_rate, file=sys.stdout)
     for iteration in pbar:
 
-        if args.model_name in ['FourierTensorVMSplit','FourierTensorVM']: tensorf.fourier_cap()
+        if is_fourier_model: tensorf.fourier_cap()
         
         ray_idx = trainingSampler.nextids()
         rays_train, rgb_train = allrays[ray_idx], allrgbs[ray_idx].to(device)
@@ -246,7 +248,10 @@ def reconstruction(args):
         if iteration % args.vis_every == args.vis_every - 1 and args.N_vis!=0:
             PSNRs_test = evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/imgs_vis/', N_vis=args.N_vis,
                                     prtx=f'{iteration:06d}_', N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, compute_extra_metrics=False)
+            if is_fourier_model: save_feature_maps(tensorf,f'{logfolder}/feature_maps',prtx=f'{iteration:06d}_')
+
             summary_writer.add_scalar('test/psnr', np.mean(PSNRs_test), global_step=iteration)
+            
 
 
 
@@ -280,12 +285,12 @@ def reconstruction(args):
             else:
                 lr_scale = args.lr_decay_target_ratio ** (iteration / args.n_iters)
             grad_vars = tensorf.get_optparam_groups(args.lr_init*lr_scale, args.lr_basis*lr_scale)
-            optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
+            optimizer = torch.optim.AdamW(grad_vars, betas=(0.9, 0.99))
 
-        if iteration % args.increase_feature_cap_every == 0 and iteration != 0:
-            if isinstance(tensorf,(TensorFourierCP,FourierTensorVM,FourierTensorVMSplit)): 
+        if (args.increase_feature_cap_every> 0) and is_fourier_model:
+            if(iteration % args.increase_feature_cap_every == 0) and (iteration != 0): 
                 # we only limit the frequency the first 10k iterations
-                tensorf.increase_frequency_cap(max_number_of_iterations=10_000/args.increase_feature_cap_every)
+                tensorf.increase_frequency_cap(max_number_of_iterations=args.increase_frequency_cap_until/args.increase_feature_cap_every)
         
 
     tensorf.save(f'{logfolder}/{args.expname}.th')

@@ -4,6 +4,7 @@ from dataLoader.ray_utils import get_rays
 from models.tensoRF import TensorVM, TensorCP, raw2alpha, TensorVMSplit, AlphaGridMask, TensorFourierCP, FourierTensorVMSplit, FourierTensorVM
 from utils import *
 from dataLoader.ray_utils import ndc_rays_blender
+import matplotlib.pyplot as plt
 
 
 def OctreeRender_trilinear_fast(rays, tensorf, chunk=4096, N_samples=-1, ndc_ray=False, white_bg=True, is_train=False, device='cuda'):
@@ -143,3 +144,11 @@ def evaluation_path(test_dataset,tensorf, c2ws, renderer, savePath=None, N_vis=5
 
     return PSNRs
 
+
+def save_feature_maps(model,logfolder,prtx):
+    lines,f_lines,planes,f_planes = model.visualize_fourier_space()
+    for idx in range(len(lines)):
+        plt.imsave(os.path.join(logfolder,f'{prtx}_line_{idx}.png'), lines[idx], cmap='gray')
+        plt.imsave(os.path.join(logfolder,f'{prtx}_fourier_line_{idx}.png'), f_lines[idx], cmap='gray')
+        plt.imsave(os.path.join(logfolder,f'{prtx}_plane_{idx}.png'), planes[idx],cmap='gray')
+        plt.imsave(os.path.join(logfolder,f'{prtx}_fourier_plane_{idx}.png'), f_planes[idx], cmap='gray')

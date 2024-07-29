@@ -36,7 +36,7 @@ def config_parser(cmd=None):
                         help='learning rate')    
     parser.add_argument("--lr_basis", type=float, default=1e-3,
                         help='learning rate')
-    parser.add_argument("--lr_decay_iters", type=int, default=-1,
+    parser.add_argument("--lr_decay_iters", type=int, default=30_000,
                         help = 'number of iterations the lr will decay to the target ratio; -1 will set it to n_iters')
     parser.add_argument("--lr_decay_target_ratio", type=float, default=0.1,
                         help='the target decay ratio; after decay_iters inital lr decays to lr*ratio')
@@ -132,8 +132,10 @@ def config_parser(cmd=None):
                         help='frequency of visualize the image')
     
     # Fourier options
-    parser.add_argument("--increase_feature_cap_every", type=int, default=500,
+    parser.add_argument("--increase_feature_cap_every", type=int, default=-1,
                         help='Increase the frequency_cap every certain number of iterations')
+    parser.add_argument("--increase_frequency_cap_until", type=int, default=10_000,
+                        help='Increase the frequency_cap until a certain number of iterations')
     parser.add_argument("--number_of_views", type=int, default=-1,
                         help='Number of views used')
     parser.add_argument("--density_clip", type=float, default=100.0)
