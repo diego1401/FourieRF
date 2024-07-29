@@ -639,7 +639,6 @@ def off_center_gaussian(size1,size2,sigma=40.0):
     '''
     Return off centered gaussian to much the DC of the 2D fft. The kernel returned is normalized as to obtain values between [0,1]
     '''
-    print(size1,size2)
     kernel_size = np.array([size1,size2])
     # Create a x, y coordinate grid of shape (kernel_size, kernel_size, 2)
     x_cord = torch.arange(kernel_size[0])
