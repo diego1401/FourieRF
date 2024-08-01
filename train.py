@@ -138,7 +138,7 @@ def reconstruction(args):
                     density_n_comp=n_lamb_sigma, appearance_n_comp=n_lamb_sh, app_dim=args.data_dim_color, near_far=near_far,
                     shadingMode=args.shadingMode, alphaMask_thres=args.alpha_mask_thre, density_shift=args.density_shift, distance_scale=args.distance_scale,
                     pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct,
-                    density_clip=args.color_clip,color_clip=args.color_clip)
+                    density_clip=args.density_clip,color_clip=args.color_clip)
 
 
     grad_vars = tensorf.get_optparam_groups(args.lr_init, args.lr_basis)
@@ -176,7 +176,7 @@ def reconstruction(args):
     
     Depth_reg_weight = args.Depth_weight
     depth_cap = args.depth_cap
-    depth_delta = -depth_cap/1000
+    depth_delta = -depth_cap/args.increase_frequency_cap_until
     
     print(f"initial depth regularization weight {Depth_reg_weight}")
 
@@ -197,7 +197,7 @@ def reconstruction(args):
         total_loss = loss.clone()
         
         if Depth_reg_weight > 0 and depth_cap > 1e-5: #occlusion loss
-            depth_cap += depth_delta
+            # depth_cap += depth_delta
             mask = depth_map<depth_cap
             total_loss -= Depth_reg_weight * depth_map[mask].mean()
         if Ortho_reg_weight > 0:
@@ -244,17 +244,6 @@ def reconstruction(args):
             )
             PSNRs = []
 
-
-        if iteration % args.vis_every == args.vis_every - 1 and args.N_vis!=0:
-            PSNRs_test = evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/imgs_vis/', N_vis=args.N_vis,
-                                    prtx=f'{iteration:06d}_', N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, compute_extra_metrics=False)
-            if is_fourier_model: save_feature_maps(tensorf,f'{logfolder}/feature_maps',prtx=f'{iteration:06d}_')
-
-            summary_writer.add_scalar('test/psnr', np.mean(PSNRs_test), global_step=iteration)
-            
-
-
-
         if iteration in update_AlphaMask_list:
 
             if reso_cur[0] * reso_cur[1] * reso_cur[2]<256**3:# update volume resolution
@@ -267,7 +256,7 @@ def reconstruction(args):
                 print("continuing L1_reg_weight", L1_reg_weight)
 
 
-            if not args.ndc_ray and iteration == update_AlphaMask_list[1]:
+            if (not args.ndc_ray) and iteration == update_AlphaMask_list[1]:
                 # filter rays outside the bbox
                 allrays,allrgbs = tensorf.filtering_rays(allrays,allrgbs)
                 trainingSampler = SimpleSampler(allrgbs.shape[0], args.batch_size)
@@ -291,6 +280,14 @@ def reconstruction(args):
             if(iteration % args.increase_feature_cap_every == 0) and (iteration != 0): 
                 # we only limit the frequency the first 10k iterations
                 tensorf.increase_frequency_cap(max_number_of_iterations=args.increase_frequency_cap_until/args.increase_feature_cap_every)
+
+        if (iteration % args.vis_every == args.vis_every - 1 and args.N_vis!=0):
+            PSNRs_test = evaluation(test_dataset,tensorf, args, renderer, f'{logfolder}/imgs_vis/', N_vis=args.N_vis,
+                                    prtx=f'{iteration:06d}_', N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, compute_extra_metrics=False)
+            if is_fourier_model: 
+                save_feature_maps(tensorf,f'{logfolder}/feature_maps',prtx=f'{iteration:06d}_')
+
+            summary_writer.add_scalar('test/psnr', np.mean(PSNRs_test), global_step=iteration)
         
 
     tensorf.save(f'{logfolder}/{args.expname}.th')

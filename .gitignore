@@ -3,9 +3,16 @@ __pycache__/*
 log/*
 debug/*
 log_4_downsampled/*
+old_results/*
+different_clips_experiment/*
+smooth_shape/*
 #ignore files
 *.mp4
 *.pyc
 *.png
 *.sh
 *.out
+*.tex
+*.txt
+*events*
+*.th

@@ -150,7 +150,7 @@ class LLFFDataset(Dataset):
 
 
         poses_bounds = np.load(os.path.join(self.root_dir, 'poses_bounds.npy'))  # (N_images, 17)
-        self.image_paths = sorted(glob.glob(os.path.join(self.root_dir, 'images_4/*')))
+        self.image_paths = sorted(glob.glob(os.path.join(self.root_dir, 'images_8/*')))
         # load full resolution image then resize
         if self.split in ['train', 'test']:
             assert len(poses_bounds) == len(self.image_paths), \

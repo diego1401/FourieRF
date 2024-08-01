@@ -666,25 +666,38 @@ def off_center_gaussian(size1,size2,sigma=40.0):
 class FourierTensorVMSplit(TensorVMSplit):
     def __init__(self, aabb, gridSize, device, **kargs):
         super(FourierTensorVMSplit, self).__init__(aabb, gridSize, device, **kargs)
-
+        self.max_freq = 100.0
         # Fourier Frequency Handler
-        self.density_clip, self.color_clip = kargs['density_clip'],kargs['color_clip']
+        self.density_clip = kargs['density_clip']
+        self.color_clip = kargs['color_clip']
         assert self.density_clip > 0 and self.color_clip > 0
         assert self.density_clip <= 100.0 and self.color_clip <= 100.0
         
         self.register_buffer('frequency_cap_density',torch.tensor([self.density_clip,self.density_clip,self.density_clip]))
         self.register_buffer('frequency_cap_color',torch.tensor([self.color_clip,self.color_clip,self.color_clip]))
-        sigmas =[40.0,40.0,40.0]
+        sigmas =[60.0,60.0,60.0]
         
         for i,size in enumerate(gridSize):
             mat_id_0, mat_id_1 = self.matMode[i]
             self.register_buffer(f'filtering_kernel_{self.vecMode[i]}',off_center_gaussian(gridSize[mat_id_0], gridSize[mat_id_1],sigma=sigmas[i]))
-        
+    
+    @torch.no_grad()
     def increase_frequency_cap(self,max_number_of_iterations):
-        delta = (100.0 - self.density_clip)/max_number_of_iterations
-        self.frequency_cap_density = torch.clamp(self.frequency_cap_density+delta,0,100.0)
-        self.frequency_cap_color = torch.clamp(self.frequency_cap_color+delta,0,100.0)
-        
+        if (self.frequency_cap_color>=self.max_freq).all() and (self.frequency_cap_density>=self.max_freq).all(): 
+            return
+        delta_density = (self.max_freq - self.density_clip)/max_number_of_iterations
+        delta_color = (self.max_freq - self.color_clip)/max_number_of_iterations
+                                                                                                                                                                                                                                                                              
+        self.fourier_cap()
+        for i in range(len(self.vecMode)):
+            self.density_line[i].copy_(self.density_line_capped[i])
+            self.density_plane[i].copy_(self.density_planes_capped[i])
+            self.app_line[i].copy_(self.app_line_capped[i])
+            self.app_plane[i].copy_(self.app_planes_capped[i])
+
+        self.frequency_cap_density = torch.clamp(self.frequency_cap_density+delta_density,0,self.max_freq)
+        self.frequency_cap_color = torch.clamp(self.frequency_cap_color+delta_color,0,self.max_freq)
+
     @torch.no_grad()
     def visualize_fourier_space(self):
         # Cap density
@@ -692,11 +705,11 @@ class FourierTensorVMSplit(TensorVMSplit):
         lines, f_lines, planes, f_planes = [],[],[],[]
         for idx in range(len(self.density_plane)):
             # Lines
-            density_line = self.density_line[idx][0,...,0]
+            density_line = self.density_line[idx][0].mean(0)
             density_line /= density_line.max()
             density_line = density_line.cpu()
 
-            app_line = self.app_line[idx][0,...,0]
+            app_line = self.app_line[idx][0].mean(0)
             app_line /= app_line.max()
             app_line = app_line.cpu()
 
@@ -743,74 +756,60 @@ class FourierTensorVMSplit(TensorVMSplit):
 
         return lines,f_lines,planes,f_planes
             
+    def fourier_cap_on_lines(self,lines,frequency_cap):
+        assert (frequency_cap >= 0).all()
+        assert (frequency_cap <= 1).all()
+        fourier_capped_lines = []
+        for idx in range(len(lines)):
+                # Cap lines
+                fourier_line = torch.fft.rfft(lines[idx],dim=-2)
+                padded_line = torch.zeros_like(fourier_line)
+                
+                resolution_line = fourier_line.shape[2]
+                line_frequency_cap = int(resolution_line * frequency_cap[idx])
+                line_frequency_cap = max(line_frequency_cap,1) # we do not want 0 arrays
+                
+                padded_line[:,:,:line_frequency_cap,:] = fourier_line[:,:,:line_frequency_cap,:]
+                line_capped = torch.fft.irfft(padded_line,dim=-2,n=lines[idx].shape[-2])
+                # Store them
+                fourier_capped_lines.append(line_capped)
+                
+        return fourier_capped_lines
+
+    def fourier_cap_on_planes(self,planes,frequency_cap):
+        assert (frequency_cap >= 0).all()
+        assert (frequency_cap <= 1).all()
+        fourier_capped_planes = []
+        for idx in range(len(planes)):
+            # Cap Planes
+            fourier_plane = torch.fft.fft2(planes[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
+            fourier_plane_shiffted = torch.fft.fftshift(fourier_plane)
+            padded_fourier_plane = torch.zeros_like(fourier_plane_shiffted)
+            _, feat_dim, _, _ = fourier_plane_shiffted.shape
+            
+            gaussian_blur = getattr(self,f'filtering_kernel_{self.vecMode[idx]}')
+            percentage = (1.0-frequency_cap[idx])
+            mask = (gaussian_blur>=percentage).flatten()
+            
+            padded_fourier_plane.view(1, feat_dim,-1)[:,:,mask] = fourier_plane_shiffted.view(1, feat_dim,-1)[:,:,mask]
+            padded_fourier_plane_unshiffted = torch.fft.ifftshift(padded_fourier_plane)
+            plane_capped = torch.real(torch.fft.ifft2(padded_fourier_plane_unshiffted))
+
+            fourier_capped_planes.append(plane_capped)
+
+        return fourier_capped_planes
+
     def fourier_cap(self):
         '''
         This function smooths the signals encoded in the the TensoRF representation. It should be called once at the start of every iteration as
         long frequency_cap < 100.
         '''
-        # Cap density
-        density_new_lines = []
-        new_density_planes = []
-        for idx in range(len(self.density_plane)):
-            # Cap lines
-            density_fourier_line = torch.fft.rfft(self.density_line[idx],dim=-2)
-            padded_density_line = torch.zeros_like(density_fourier_line)
-            resolution_density_line = density_fourier_line.shape[2]
-            density_line_frequency_cap = int(resolution_density_line* self.frequency_cap_density[idx]/100.0)
-            padded_density_line[:,:,:density_line_frequency_cap,:] = density_fourier_line[:,:,:density_line_frequency_cap,:] 
-            d_line_capped = torch.fft.irfft(padded_density_line,dim=-2)
 
-            # Cap Planes
-            density_fourier_plane = torch.fft.fft2(self.density_plane[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
-            density_fourier_plane_shifted = torch.fft.fftshift(density_fourier_plane)
-            padded_density_fourier_plane = torch.zeros_like(density_fourier_plane_shifted)
-            _, feat_dim, _, _ = density_fourier_plane_shifted.shape
-            mask = (getattr(self,f'filtering_kernel_{self.vecMode[idx]}')>=(1-self.frequency_cap_density[idx]/100.0)).flatten()
-            
-            padded_density_fourier_plane.view(1, feat_dim,-1)[:,:,mask] = density_fourier_plane_shifted.view(1, feat_dim,-1)[:,:,mask]
-            padded_fourier_plane_unshiffted = torch.fft.ifftshift(padded_density_fourier_plane)
-            d_plane_capped = torch.real(torch.fft.ifft2(padded_fourier_plane_unshiffted))
+        self.density_line_capped = self.fourier_cap_on_lines(self.density_line,self.frequency_cap_density/100.0)
+        self.density_planes_capped = self.fourier_cap_on_planes(self.density_plane,self.frequency_cap_density/100.0)
 
-            # Store them
-            density_new_lines.append(d_line_capped)
-            new_density_planes.append(d_plane_capped)
-
-        self.density_line_capped = density_new_lines
-        self.density_planes_capped = new_density_planes
-
-        # Cap appereance
-        new_app_lines = []
-        new_app_planes = []
-        for idx in range(len(self.app_plane)):
-            # Cap lines
-            app_fourier_line = torch.fft.rfft(self.app_line[idx],dim=-2)
-            padded_app_line = torch.zeros_like(app_fourier_line)
-            resolution_app_line = app_fourier_line.shape[2]
-            f_cap = int(resolution_app_line * self.frequency_cap_color[idx]/100.0)
-            padded_app_line[:,:,:f_cap,:]  = app_fourier_line[:,:,:f_cap,:] 
-            a_line_capped = torch.fft.irfft(padded_app_line,dim=-2)
-
-            # Cap Planes
-            app_fourier_plane = torch.fft.fft2(self.app_plane[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
-            app_fourier_plane_shiffted = torch.fft.fftshift(app_fourier_plane)
-            padded_app_fourier_plane = torch.zeros_like(app_fourier_plane_shiffted)
-            _, feat_dim, _, _ = app_fourier_plane_shiffted.shape
-            gaussian_blur = getattr(self,f'filtering_kernel_{self.vecMode[idx]}')
-            
-            percentage = (1-self.frequency_cap_color[idx]/100.0)
-            mask = (gaussian_blur>=percentage).flatten()
-            
-            padded_app_fourier_plane.view(1, feat_dim,-1)[:,:,mask] = app_fourier_plane_shiffted.view(1, feat_dim,-1)[:,:,mask]
-
-            padded_app_fourier_plane_unshiffted = torch.fft.ifftshift(padded_app_fourier_plane)
-            a_plane_capped = torch.real(torch.fft.ifft2(padded_app_fourier_plane_unshiffted))
-            
-            # Store them
-            new_app_lines.append(a_line_capped)
-            new_app_planes.append(a_plane_capped)
-        # raise ValueError("stop") 
-        self.app_line_capped = new_app_lines
-        self.app_planes_capped = new_app_planes
+        self.app_line_capped = self.fourier_cap_on_lines(self.app_line,self.frequency_cap_color/100.0)
+        self.app_planes_capped = self.fourier_cap_on_planes(self.app_plane,self.frequency_cap_color/100.0)
 
     def compute_densityfeature(self, xyz_sampled):
 
@@ -866,57 +865,39 @@ class FourierTensorVMSplit(TensorVMSplit):
         return total
 
     @torch.no_grad()
+    def up_sampling_VM(self, plane_coef, line_coef, res_target):
+        new_plane = []
+        new_line = []
+        for i in range(len(self.vecMode)):
+            vec_id = self.vecMode[i]
+            mat_id_0, mat_id_1 = self.matMode[i]
+            new_plane.append(torch.nn.Parameter(
+                F.interpolate(plane_coef[i].data, size=(res_target[mat_id_1], res_target[mat_id_0]), mode='bilinear',
+                              align_corners=True)))
+            new_line.append(torch.nn.Parameter(
+                F.interpolate(line_coef[i].data, size=(res_target[vec_id], 1), mode='bilinear', align_corners=True)))
+
+        return torch.nn.ParameterList(new_plane), torch.nn.ParameterList(new_line)
+    
+    @torch.no_grad()
     def upsample_volume_grid(self, res_target):
-        super(FourierTensorVMSplit, self).upsample_volume_grid(res_target)
+        old_grid_size = self.gridSize
+        self.app_plane, self.app_line = self.up_sampling_VM(self.app_planes_capped, self.app_line_capped, res_target)
+        self.density_plane, self.density_line = self.up_sampling_VM(self.density_planes_capped, self.density_line_capped, res_target)
+
+        self.update_stepSize(res_target)
+        print(f'upsamping to {res_target}')
+        new_grid_size = self.gridSize
+        ratio = (new_grid_size/old_grid_size).cpu()
+        print(f'upsampling ratio {ratio}')
+        self.frequency_cap_color *= ratio
+        self.frequency_cap_density *= ratio
+        self.frequency_cap_density = torch.clamp(self.frequency_cap_density,0,self.max_freq)
+        self.frequency_cap_color = torch.clamp(self.frequency_cap_color,0,self.max_freq)
         # update filters
         for i,size in enumerate(res_target):
             mat_id_0, mat_id_1 = self.matMode[i]
             setattr(self,f'filtering_kernel_{self.vecMode[i]}',off_center_gaussian(res_target[mat_id_0], res_target[mat_id_1]))
-
-    @torch.no_grad()
-    def shrink(self, new_aabb):
-        print("====> shrinking ...")
-        xyz_min, xyz_max = new_aabb
-        t_l, b_r = (xyz_min - self.aabb[0]) / self.units, (xyz_max - self.aabb[0]) / self.units
-        # print(new_aabb, self.aabb)
-        # print(t_l, b_r,self.alphaMask.alpha_volume.shape)
-        t_l, b_r = torch.round(torch.round(t_l)).long(), torch.round(b_r).long() + 1
-        b_r = torch.stack([b_r, self.gridSize]).amin(0)
-
-        for i in range(len(self.vecMode)):
-            mode0 = self.vecMode[i]
-            self.density_line[i] = torch.nn.Parameter(
-                self.density_line[i].data[...,t_l[mode0]:b_r[mode0],:]
-            )
-            self.app_line[i] = torch.nn.Parameter(
-                self.app_line[i].data[...,t_l[mode0]:b_r[mode0],:]
-            )
-            mode0, mode1 = self.matMode[i]
-            self.density_plane[i] = torch.nn.Parameter(
-                self.density_plane[i].data[...,t_l[mode1]:b_r[mode1],t_l[mode0]:b_r[mode0]]
-            )
-            self.app_plane[i] = torch.nn.Parameter(
-                self.app_plane[i].data[...,t_l[mode1]:b_r[mode1],t_l[mode0]:b_r[mode0]]
-            )
-
-
-        if not torch.all(self.alphaMask.gridSize == self.gridSize):
-            t_l_r, b_r_r = t_l / (self.gridSize-1), (b_r-1) / (self.gridSize-1)
-            correct_aabb = torch.zeros_like(new_aabb)
-            correct_aabb[0] = (1-t_l_r)*self.aabb[0] + t_l_r*self.aabb[1]
-            correct_aabb[1] = (1-b_r_r)*self.aabb[0] + b_r_r*self.aabb[1]
-            print("aabb", new_aabb, "\ncorrect aabb", correct_aabb)
-            new_aabb = correct_aabb
-
-        newSize = b_r - t_l
-        self.aabb = new_aabb
-        self.update_stepSize((newSize[0], newSize[1], newSize[2]))
-
-        # update filters
-        newSize = newSize.cpu()
-        for i,size in enumerate(newSize):
-            mat_id_0, mat_id_1 = self.matMode[i]
-            setattr(self,f'filtering_kernel_{self.vecMode[i]}',off_center_gaussian(newSize[mat_id_0], newSize[mat_id_1]))
 
 class FourierTensorVM(TensorVM):
     def __init__(self, aabb, gridSize, device, **kargs):
