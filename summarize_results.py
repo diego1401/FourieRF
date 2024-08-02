@@ -14,7 +14,7 @@ def parse_mean_file(file_path):
 
 def collect_metrics(root_dir):
     """Walk through directories to find mean.txt files and collect metrics."""
-    metrics = {'3': {}, '6': {}}
+    metrics = {'3': {}, '6': {},'9':{}}
     for root, dirs, files in os.walk(root_dir):
         if 'mean.txt' in files:
             mean_file_path = os.path.join(root, 'mean.txt')
@@ -26,6 +26,9 @@ def collect_metrics(root_dir):
                 elif '/6/' in root:
                     scene_name = root.split('/')[-2]
                     metrics['6'][scene_name] = metrics_data
+                elif '/9/' in root:
+                    scene_name = root.split('/')[-2]
+                    metrics['9'][scene_name] = metrics_data
     return metrics
 
 def compute_mean(metrics):
@@ -70,7 +73,8 @@ def write_latex_table(metrics, means, output_file):
         f.write("\\caption{Error Metrics for Directories 3 and 6}\n")
         f.write("\\end{table}\n")
 
-root_directory = 'log_low_cap'  # Replace with your root directory
+expname='increase_until_10000'
+root_directory = f'smooth_trajectory_ablation/{expname}'  # Replace with your root directory
 metrics = collect_metrics(root_directory)
 means = compute_mean(metrics)
-write_latex_table(metrics, means, f'metrics_table_{root_directory}.tex')
+write_latex_table(metrics, means, f'metrics_table_{expname}.tex')
