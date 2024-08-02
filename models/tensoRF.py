@@ -675,7 +675,7 @@ class FourierTensorVMSplit(TensorVMSplit):
         
         self.register_buffer('frequency_cap_density',torch.tensor([self.density_clip,self.density_clip,self.density_clip]))
         self.register_buffer('frequency_cap_color',torch.tensor([self.color_clip,self.color_clip,self.color_clip]))
-        sigmas =[60.0,60.0,60.0]
+        sigmas =[10.0,10.0,10.0]
         
         for i,size in enumerate(gridSize):
             mat_id_0, mat_id_1 = self.matMode[i]
@@ -766,10 +766,22 @@ class FourierTensorVMSplit(TensorVMSplit):
                 padded_line = torch.zeros_like(fourier_line)
                 
                 resolution_line = fourier_line.shape[2]
-                line_frequency_cap = int(resolution_line * frequency_cap[idx])
-                line_frequency_cap = max(line_frequency_cap,1) # we do not want 0 arrays
-                
-                padded_line[:,:,:line_frequency_cap,:] = fourier_line[:,:,:line_frequency_cap,:]
+                # line_frequency_cap = int(resolution_line * frequency_cap[idx])
+                # line_frequency_cap = max(line_frequency_cap,1) # we do not want 0 arrays
+                line_frequency_cap_continous = resolution_line * frequency_cap[idx]
+                if line_frequency_cap_continous < 1:
+                    line_frequency_cap = 1
+                    padded_line[:,:,:line_frequency_cap,:] = fourier_line[:,:,:line_frequency_cap,:]
+                elif line_frequency_cap_continous >= resolution_line:
+                    padded_line[...] = fourier_line[...]
+                else:
+                    line_frequency_cap = int(line_frequency_cap_continous)
+                    reminder_frequency = line_frequency_cap_continous - line_frequency_cap
+                    
+                    padded_line[:,:,:line_frequency_cap,:] = fourier_line[:,:,:line_frequency_cap,:]
+                    # adding remainder
+                    padded_line[:,:,line_frequency_cap,:] = reminder_frequency * fourier_line[:,:,line_frequency_cap,:]
+                    
                 line_capped = torch.fft.irfft(padded_line,dim=-2,n=lines[idx].shape[-2])
                 # Store them
                 fourier_capped_lines.append(line_capped)
@@ -784,16 +796,18 @@ class FourierTensorVMSplit(TensorVMSplit):
             # Cap Planes
             fourier_plane = torch.fft.fft2(planes[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
             fourier_plane_shiffted = torch.fft.fftshift(fourier_plane)
-            padded_fourier_plane = torch.zeros_like(fourier_plane_shiffted)
+            # padded_fourier_plane = torch.zeros_like(fourier_plane_shiffted)
             _, feat_dim, _, _ = fourier_plane_shiffted.shape
             
-            gaussian_blur = getattr(self,f'filtering_kernel_{self.vecMode[idx]}')
+            gaussian_blur = getattr(self,f'filtering_kernel_{self.vecMode[idx]}').clone()
             percentage = (1.0-frequency_cap[idx])
-            mask = (gaussian_blur>=percentage).flatten()
+            mask = (gaussian_blur>=percentage)
+            gaussian_blur[mask] = 1.0
+            gaussian_blur = gaussian_blur.repeat(feat_dim,1,1).unsqueeze(0)
+            # padded_fourier_plane.view(1, feat_dim,-1)[:,:,mask] = fourier_plane_shiffted.view(1, feat_dim,-1)[:,:,mask]
             
-            padded_fourier_plane.view(1, feat_dim,-1)[:,:,mask] = fourier_plane_shiffted.view(1, feat_dim,-1)[:,:,mask]
-            padded_fourier_plane_unshiffted = torch.fft.ifftshift(padded_fourier_plane)
-            plane_capped = torch.real(torch.fft.ifft2(padded_fourier_plane_unshiffted))
+            fourier_plane_unshiffted = torch.fft.ifftshift(fourier_plane_shiffted*gaussian_blur.to(fourier_plane_shiffted.device).float())
+            plane_capped = torch.real(torch.fft.ifft2(fourier_plane_unshiffted))
 
             fourier_capped_planes.append(plane_capped)
 
