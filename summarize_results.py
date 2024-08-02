@@ -7,28 +7,23 @@ def parse_mean_file(file_path):
         if len(lines) == 4:
             psnr = float(lines[0].strip())
             ssim = float(lines[1].strip())
-            l_a = float(lines[2].strip())
+            l_a = float(lines[2].strip()) #NOT USED
             l_v = float(lines[3].strip())
-            return psnr, ssim, l_a, l_v
+            return psnr, ssim, l_v
     return None
 
 def collect_metrics(root_dir):
     """Walk through directories to find mean.txt files and collect metrics."""
-    metrics = {'3': {}, '6': {},'9':{}}
+    metrics = {'3': {}, '6': {}, '9': {}}
     for root, dirs, files in os.walk(root_dir):
         if 'mean.txt' in files:
             mean_file_path = os.path.join(root, 'mean.txt')
             metrics_data = parse_mean_file(mean_file_path)
             if metrics_data:
-                if '/3/' in root:
-                    scene_name = root.split('/')[-2]
-                    metrics['3'][scene_name] = metrics_data
-                elif '/6/' in root:
-                    scene_name = root.split('/')[-2]
-                    metrics['6'][scene_name] = metrics_data
-                elif '/9/' in root:
-                    scene_name = root.split('/')[-2]
-                    metrics['9'][scene_name] = metrics_data
+                for key in metrics.keys():
+                    if f'/{key}/' in root:
+                        scene_name = root.split('/')[-2]
+                        metrics[key][scene_name] = metrics_data
     return metrics
 
 def compute_mean(metrics):
@@ -40,41 +35,50 @@ def compute_mean(metrics):
             metric = metrics[key][scene]
             psnr_sum += metric[0]
             ssim_sum += metric[1]
-            l_a_sum += metric[2]
-            l_v_sum += metric[3]
+            # l_a_sum += metric[2]
+            l_v_sum += metric[2]
         n = len(metrics[key])
-        means[key] = (psnr_sum / n, ssim_sum / n, l_a_sum / n, l_v_sum / n)
+        means[key] = (psnr_sum / n, ssim_sum / n,l_v_sum / n)
     return means
 
-def write_latex_table(metrics, means, output_file):
-    """Write the metrics and means into a LaTeX table."""
-    with open(output_file, 'w') as f:
-        f.write("\\begin{table}[ht]\n")
-        f.write("\\centering\n")
-        f.write("\\begin{tabular}{|c|c|c|c|c|}\n")
-        f.write("\\hline\n")
-        f.write("Scene & PSNR & SSIM & L_A & L_V \\\\\n")
-        f.write("\\hline\n")
-        
-        # Write individual metrics
-        for key in metrics:
-            for scene, metric in metrics[key].items():
-                f.write(f"{scene}_{key} & {metric[0]:.10e} & {metric[1]:.10e} & {metric[2]:.10e} & {metric[3]:.10e} \\\\\n")
-                f.write("\\hline\n")
+def write_latex_lines(metrics, means):
+    """Write the metrics and means into LaTeX table lines."""
+    methods = {}
+    for view, scenes in metrics.items():
+        for scene, metric in scenes.items():
+            if scene not in methods:
+                methods[scene] = {}
+            methods[scene][view] = metric
+    
+    latex_lines = []
+    for method, views in methods.items():
+        line = f"{method} &"
+        for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
+            for view in ['3', '6', '9']:
+                if view in views:
+                    metric = views[view][metric_index]
+                    line += f" {metric:.3f} &"
+                else:
+                    line += " - &"
+        latex_lines.append(line.strip('&') + " \\\\")
+    
+    latex_lines.append("\\hline")
+    mean_line = "Mean &"
+    for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
+        for view in ['3', '6', '9']:
+            if view in means:
+                metric = means[view][metric_index]
+                mean_line += f" {metric:.3f} &"
+            else:
+                mean_line += " - &"
+    latex_lines.append(mean_line.strip('&') + " \\\\")
+    
+    return latex_lines
 
-        # Write mean metrics
-        f.write("\\hline\n")
-        for key in means:
-            mean = means[key]
-            f.write(f"Mean {key} & {mean[0]:.10e} & {mean[1]:.10e} & {mean[2]:.10e} & {mean[3]:.10e} \\\\\n")
-            f.write("\\hline\n")
-
-        f.write("\\end{tabular}\n")
-        f.write("\\caption{Error Metrics for Directories 3 and 6}\n")
-        f.write("\\end{table}\n")
-
-expname='increase_until_10000'
-root_directory = f'smooth_trajectory_ablation/{expname}'  # Replace with your root directory
+root_directory = 'smooth_trajectory_ablation/increase_until_10000'  # Replace with your root directory
 metrics = collect_metrics(root_directory)
 means = compute_mean(metrics)
-write_latex_table(metrics, means, f'metrics_table_{expname}.tex')
+latex_lines = write_latex_lines(metrics,means)
+
+for line in latex_lines:
+    print(line)
