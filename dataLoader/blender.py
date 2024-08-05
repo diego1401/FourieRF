@@ -5,16 +5,18 @@ from tqdm import tqdm
 import os
 from PIL import Image
 from torchvision import transforms as T
-
+from sklearn.cluster import KMeans
 
 from .ray_utils import *
+
+def kmeans_downsample(points, n_points_to_sample):
+    kmeans = KMeans(n_points_to_sample).fit(points)
+    return ((points - kmeans.cluster_centers_[..., None, :]) ** 2).sum(-1).argmin(-1).tolist()
 
 
 class BlenderDataset(Dataset):
     def __init__(self, datadir, split='train', downsample=1.0, is_stack=False, N_vis=-1,number_of_views=-1):
-        if number_of_views > 0:
-            raise ValueError('Number of views not implemented yet')
-
+        self.number_of_views = number_of_views
         self.N_vis = N_vis
         self.root_dir = datadir
         self.split = split
@@ -43,6 +45,17 @@ class BlenderDataset(Dataset):
         with open(os.path.join(self.root_dir, f"transforms_{self.split}.json"), 'r') as f:
             self.meta = json.load(f)
 
+        # Choosing views like in ZeroRF
+        if self.split != 'train' or self.number_of_views < 0:
+            img_eval_interval = 1 if self.N_vis < 0 else len(self.meta['frames']) // self.N_vis
+            idxs = list(range(0, len(self.meta['frames']), img_eval_interval))
+        else:
+            all_poses = []
+            for i,frame in enumerate(self.meta["frames"]):
+                all_poses.append(np.array(frame["transform_matrix"]))
+            all_poses = np.array(all_poses).astype(np.float32)
+            idxs = kmeans_downsample(all_poses[..., :3, 3], self.number_of_views)
+
         w, h = self.img_wh
         self.focal = 0.5 * 800 / np.tan(0.5 * self.meta['camera_angle_x'])  # original focal length
         self.focal *= self.img_wh[0] / 800  # modify focal length to match size self.img_wh
@@ -61,8 +74,7 @@ class BlenderDataset(Dataset):
         self.all_depth = []
         self.downsample=1.0
 
-        img_eval_interval = 1 if self.N_vis < 0 else len(self.meta['frames']) // self.N_vis
-        idxs = list(range(0, len(self.meta['frames']), img_eval_interval))
+        
         for i in tqdm(idxs, desc=f'Loading data {self.split} ({len(idxs)})'):
             frame = self.meta['frames'][i]
             pose = np.array(frame['transform_matrix']) @ self.blender2opencv
