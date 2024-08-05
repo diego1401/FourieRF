@@ -166,15 +166,15 @@ def create_circle_array(n, m, r_ratio):
     # Calculate the radius
     square_side=max(n, m)
     diag = np.sqrt(2*square_side**2)
-    radius = r_ratio/2 * diag
+    # radius = np.sqrt(r_ratio/2 * diag)
+    radius=r_ratio/2 * diag
     # Create an nxm array of zeros
     if r_ratio >= 1.0:
         array = np.ones((n, m))
         return torch.from_numpy(array).float() + 1e-6
     array = np.zeros((n, m))
     
-    # Get the coordinates of the center of the array
-    center_x, center_y = n // 2, m // 2
+    center_x, center_y = m// 2,n // 2
     
     # Create a coordinate grid
     y, x = np.ogrid[:n, :m]
@@ -212,16 +212,18 @@ class FourierTensorVMSplit(TensorVMSplit):
         self.color_clip = kargs['color_clip']
         assert self.density_clip > 0 and self.color_clip > 0
         assert self.density_clip <= 100.0 and self.color_clip <= 100.0
+
+        self.density_clip /= 100.0
+        self.color_clip /= 100.0
         
         self.register_buffer('frequency_cap_density',torch.tensor([self.density_clip,self.density_clip,self.density_clip]))
         self.register_buffer('frequency_cap_color',torch.tensor([self.color_clip,self.color_clip,self.color_clip]))
 
-        self.density_clip /= 100.0
-        self.color_clip /= 100.0
+        
 
         for i,size in enumerate(gridSize):
             mat_id_0, mat_id_1 = self.matMode[i]
-            gaussian_blur = create_circle_array(gridSize[mat_id_1], gridSize[mat_id_0],r_ratio=self.density_clip)
+            gaussian_blur = create_circle_array(gridSize[mat_id_1], gridSize[mat_id_0],r_ratio=1.0)
             self.register_buffer(f'filtering_kernel_{self.vecMode[i]}',gaussian_blur)
         
     @torch.no_grad()
