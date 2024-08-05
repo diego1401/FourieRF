@@ -146,9 +146,12 @@ def evaluation_path(test_dataset,tensorf, c2ws, renderer, savePath=None, N_vis=5
 
 
 def save_feature_maps(model,logfolder,prtx):
-    lines,f_lines,planes,f_planes = model.visualize_fourier_space()
+    info = model.visualize_fourier_space()
+    if info is None: return
+    lines,f_lines,planes,f_planes = info
     for idx in range(len(lines)):
         plt.imsave(os.path.join(logfolder,f'{prtx}_line_{idx}.png'), lines[idx], cmap='gray')
         plt.imsave(os.path.join(logfolder,f'{prtx}_fourier_line_{idx}.png'), f_lines[idx], cmap='gray')
         plt.imsave(os.path.join(logfolder,f'{prtx}_plane_{idx}.png'), planes[idx],cmap='gray')
         plt.imsave(os.path.join(logfolder,f'{prtx}_fourier_plane_{idx}.png'), f_planes[idx], cmap='gray')
+        plt.imsave(os.path.join(logfolder,f'{prtx}_filter_{idx}.png'), getattr(model,f'filtering_kernel_{model.vecMode[idx]}').cpu(), cmap='gray')

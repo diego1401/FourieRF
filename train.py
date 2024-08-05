@@ -108,7 +108,7 @@ def reconstruction(args):
     else:
         logfolder = f'{args.basedir}/{args.expname}'
     
-    is_fourier_model = args.model_name in ['FourierTensorVMSplit','FourierTensorVM']
+    is_fourier_model = args.model_name in ['FourierTensorVMSplit','FourierTensorVM','TensorFourierCP']
     # init log file
     os.makedirs(logfolder, exist_ok=True)
     os.makedirs(f'{logfolder}/imgs_vis', exist_ok=True)
@@ -150,7 +150,7 @@ def reconstruction(args):
 
     print("lr decay", args.lr_decay_target_ratio, args.lr_decay_iters)
     
-    optimizer = torch.optim.AdamW(grad_vars, betas=(0.9,0.99))
+    optimizer = torch.optim.Adam(grad_vars, betas=(0.9,0.99))
 
 
     #linear in logrithmic space
@@ -176,7 +176,6 @@ def reconstruction(args):
     
     Depth_reg_weight = args.Depth_weight
     depth_cap = args.depth_cap
-    depth_delta = -depth_cap/args.increase_frequency_cap_until
     
     print(f"initial depth regularization weight {Depth_reg_weight}")
 
@@ -236,12 +235,14 @@ def reconstruction(args):
 
         # Print the current values of the losses.
         if iteration % args.progress_refresh_rate == 0:
-            pbar.set_description(
-                f'Iteration {iteration:05d}:'
-                + f' train_psnr = {float(np.mean(PSNRs)):.2f}'
-                + f' test_psnr = {float(np.mean(PSNRs_test)):.2f}'
+            print_string = f'Iteration {iteration:05d}:' \
+                + f' train_psnr = {float(np.mean(PSNRs)):.2f}'\
+                + f' test_psnr = {float(np.mean(PSNRs_test)):.2f}'\
                 + f' mse = {loss:.6f}'
-            )
+            if is_fourier_model:
+                print_string += f' percentage p. = {tensorf.percentage_of_parameters()}' \
+                               + f' clip density = {tensorf.frequency_cap_density[0].item()}'
+            pbar.set_description(print_string)
             PSNRs = []
 
         if iteration in update_AlphaMask_list:
@@ -274,7 +275,7 @@ def reconstruction(args):
             else:
                 lr_scale = args.lr_decay_target_ratio ** (iteration / args.n_iters)
             grad_vars = tensorf.get_optparam_groups(args.lr_init*lr_scale, args.lr_basis*lr_scale)
-            optimizer = torch.optim.AdamW(grad_vars, betas=(0.9, 0.99))
+            optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
 
         if (args.increase_feature_cap_every> 0) and is_fourier_model:
             if(iteration % args.increase_feature_cap_every == 0) and (iteration != 0): 

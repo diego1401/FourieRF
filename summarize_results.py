@@ -14,7 +14,7 @@ def parse_mean_file(file_path):
 
 def collect_metrics(root_dir):
     """Walk through directories to find mean.txt files and collect metrics."""
-    metrics = {'3': {}, '6': {}, '9': {}}
+    metrics = {'4': {}, '6': {}}
     for root, dirs, files in os.walk(root_dir):
         if 'mean.txt' in files:
             mean_file_path = os.path.join(root, 'mean.txt')
@@ -54,7 +54,7 @@ def write_latex_lines(metrics, means):
     for method, views in methods.items():
         line = f"{method} &"
         for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
-            for view in ['3', '6', '9']:
+            for view in ['4','6 ']:
                 if view in views:
                     metric = views[view][metric_index]
                     line += f" {metric:.3f} &"
@@ -65,7 +65,7 @@ def write_latex_lines(metrics, means):
     latex_lines.append("\\hline")
     mean_line = "Mean &"
     for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
-        for view in ['3', '6', '9']:
+        for view in ['4','6']:
             if view in means:
                 metric = means[view][metric_index]
                 mean_line += f" {metric:.3f} &"
@@ -75,7 +75,7 @@ def write_latex_lines(metrics, means):
     
     return latex_lines
 
-root_directory = 'smooth_trajectory_ablation/increase_until_10000'  # Replace with your root directory
+root_directory = 'log/1000'  # Replace with your root directory
 metrics = collect_metrics(root_directory)
 means = compute_mean(metrics)
 latex_lines = write_latex_lines(metrics,means)
