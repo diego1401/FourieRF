@@ -261,6 +261,7 @@ def reconstruction(args):
                 # filter rays outside the bbox
                 allrays,allrgbs = tensorf.filtering_rays(allrays,allrgbs)
                 trainingSampler = SimpleSampler(allrgbs.shape[0], args.batch_size)
+            if is_fourier_model: tensorf.update_filters()
 
 
         if iteration in upsamp_list:
@@ -276,6 +277,7 @@ def reconstruction(args):
                 lr_scale = args.lr_decay_target_ratio ** (iteration / args.n_iters)
             grad_vars = tensorf.get_optparam_groups(args.lr_init*lr_scale, args.lr_basis*lr_scale)
             optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
+            if is_fourier_model: tensorf.update_filters()
 
         if (args.increase_feature_cap_every> 0) and is_fourier_model:
             if(iteration % args.increase_feature_cap_every == 0) and (iteration != 0): 
@@ -289,6 +291,7 @@ def reconstruction(args):
                 save_feature_maps(tensorf,f'{logfolder}/feature_maps',prtx=f'{iteration:06d}_')
 
             summary_writer.add_scalar('test/psnr', np.mean(PSNRs_test), global_step=iteration)
+        
         
 
     tensorf.save(f'{logfolder}/{args.expname}.th')
