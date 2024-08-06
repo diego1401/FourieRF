@@ -124,33 +124,6 @@ class TensorFourierCP(TensorCP):
             total = total + reg(self.app_line_capped[idx]) * 1e-3
         return total
 
-def off_center_gaussian(size1,size2,sigma=40.0):
-    '''
-    Return off centered gaussian to much the DC of the 2D fft. The kernel returned is normalized as to obtain values between [0,1]
-    '''
-    kernel_size = np.array([size1,size2])
-    # Create a x, y coordinate grid of shape (kernel_size, kernel_size, 2)
-    x_cord = torch.arange(kernel_size[0])
-    x_grid = x_cord.repeat(kernel_size[1]).view(kernel_size[1],kernel_size[0])
-    y_cord = torch.arange(kernel_size[1])
-    y_grid = y_cord.repeat(kernel_size[0]).view(kernel_size[0], kernel_size[1]).t()
-    xy_grid = torch.stack([x_grid, y_grid], dim=-1)
-    mean = (kernel_size - 1)/2.
-    variance = sigma**2.
-
-    # Calculate the 2-dimensional gaussian kernel which is
-    # the product of two gaussian distributions for two different
-    # variables (in this case called x and y)
-    gaussian_kernel = (1./(2.*math.pi*variance)) *\
-                    torch.exp(
-                        -torch.sum((xy_grid - mean)**2., dim=-1) /\
-                        (2*variance)
-                    )
-    # Make sure sum of values in gaussian kernel equals 1.
-    # gaussian_kernel = gaussian_kernel/ torch.sum(gaussian_kernel)
-    # gaussian_kernel /= torch.max(gaussian_kernel)
-    return gaussian_kernel.float()
-
 def create_circle_array(n, m, r_ratio):
     """
     Create an nxm array with a circle of radius r marked with 1.0 inside and 0.0 outside.
@@ -223,7 +196,7 @@ class FourierTensorVMSplit(TensorVMSplit):
 
         for i,size in enumerate(gridSize):
             mat_id_0, mat_id_1 = self.matMode[i]
-            gaussian_blur = create_circle_array(gridSize[mat_id_1], gridSize[mat_id_0],r_ratio=1.0)
+            gaussian_blur = create_circle_array(gridSize[mat_id_1], gridSize[mat_id_0],r_ratio=self.density_clip)
             self.register_buffer(f'filtering_kernel_{self.vecMode[i]}',gaussian_blur)
         
     @torch.no_grad()
