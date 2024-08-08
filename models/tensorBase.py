@@ -34,7 +34,7 @@ def SHRender(xyz_sampled, viewdirs, features):
 def RGBRender(xyz_sampled, viewdirs, features):
 
     rgb = features
-    return rgb
+    return torch.sigmoid(rgb)
 
 class AlphaGridMask(torch.nn.Module):
     def __init__(self, device, aabb, alpha_volume):
@@ -67,9 +67,11 @@ class MLPRender_Fea(torch.nn.Module):
         layer1 = torch.nn.Linear(self.in_mlpC, featureC)
         layer2 = torch.nn.Linear(featureC, featureC)
         layer3 = torch.nn.Linear(featureC,3)
-
-        self.mlp = torch.nn.Sequential(layer1, torch.nn.ReLU(inplace=True), layer2, torch.nn.ReLU(inplace=True), layer3)
-        torch.nn.init.constant_(self.mlp[-1].bias, 0)
+        self.mlp = torch.nn.Sequential(layer1, torch.nn.ReLU(inplace=True), 
+                                       layer2, torch.nn.ReLU(inplace=True), 
+                                       layer3,
+                                       torch.nn.Sigmoid())
+        torch.nn.init.constant_(self.mlp[-2].bias, 0)
 
     def forward(self, pts, viewdirs, features):
         indata = [features, viewdirs]
@@ -79,8 +81,27 @@ class MLPRender_Fea(torch.nn.Module):
             indata += [positional_encoding(viewdirs, self.viewpe)]
         mlp_in = torch.cat(indata, dim=-1)
         rgb = self.mlp(mlp_in)
-        rgb = torch.sigmoid(rgb)
 
+        return rgb
+    
+class MLPRender_Fea_No_View_Dependence(torch.nn.Module):
+    def __init__(self,inChanel, viewpe=6, feape=6, featureC=128):
+        super(MLPRender_Fea_No_View_Dependence, self).__init__()
+
+        self.in_mlpC = inChanel
+        layer1 = torch.nn.Linear(self.in_mlpC, featureC)
+        layer2 = torch.nn.Linear(featureC, featureC)
+        # layer3 = torch.nn.Linear(featureC, featureC)
+        # layer4 = torch.nn.Linear(featureC, featureC)
+        last_layer = torch.nn.Linear(featureC,3)
+        self.mlp = torch.nn.Sequential(layer1, torch.nn.ReLU(inplace=True), 
+                                       layer2, torch.nn.ReLU(inplace=True), 
+                                       last_layer,
+                                       torch.nn.Sigmoid())
+        torch.nn.init.constant_(self.mlp[-2].bias, 0)
+        
+    def forward(self, pts, viewdirs, features):
+        rgb = self.mlp(features)
         return rgb
 
 class MLPRender_PE(torch.nn.Module):
@@ -184,6 +205,8 @@ class TensorBase(torch.nn.Module):
         elif shadingMode == 'RGB':
             assert self.app_dim == 3
             self.renderModule = RGBRender
+        elif shadingMode == 'MLP_Fea_No_View_Dependence':
+            self.renderModule = MLPRender_Fea_No_View_Dependence(self.app_dim).to(device)
         else:
             print("Unrecognized shading module")
             exit()
@@ -456,7 +479,7 @@ class TensorBase(torch.nn.Module):
             rgb_map = rgb_map + (1. - acc_map[..., None])
 
         
-        rgb_map = rgb_map.clamp(0,1)
+        # rgb_map = rgb_map.clamp(0,1)
 
         # with torch.no_grad():
         depth_map = torch.sum(weight * z_vals, -1)
