@@ -5,6 +5,9 @@ import math
     
 # FourieRF ################################
 
+def map_to_visualize(x):
+    return 0.5 + np.arctan(x)/np.pi
+
 def fourier_on_lines(lines,frequency_cap):
         assert (frequency_cap >= 0).all()
         assert (frequency_cap <= 1).all()
@@ -218,23 +221,23 @@ class FourierTensorVMSplit(TensorVMSplit):
         for idx in range(len(self.density_plane)):
             # Lines
             density_line = self.density_line[idx][0].mean(0)
-            density_line /= density_line.max()
+            # density_line /= density_line.max()
             density_line = density_line.cpu()
 
             app_line = self.app_line[idx][0].mean(0)
-            app_line /= app_line.max()
+            # app_line /= app_line.max()
             app_line = app_line.cpu()
 
             line = np.concatenate([density_line,app_line],axis=0)
             # Fourier lines
             density_f_space_line = torch.fft.rfft(self.density_line[idx],dim=-2)[0,...,0]
             density_f_space_line = torch.abs(density_f_space_line)
-            density_f_space_line /= density_f_space_line.max()
+            # density_f_space_line /= density_f_space_line.max()
             density_f_space_line = density_f_space_line.cpu()
 
             app_f_space_line = torch.fft.rfft(self.app_line[idx],dim=-2)[0,...,0]
             app_f_space_line = torch.abs(app_f_space_line)
-            app_f_space_line /= app_f_space_line.max()
+            # app_f_space_line /= app_f_space_line.max()
             app_f_space_line = app_f_space_line.cpu()
 
             f_line = np.concatenate([density_f_space_line,app_f_space_line],axis=0)
@@ -244,27 +247,27 @@ class FourierTensorVMSplit(TensorVMSplit):
             density_plane = density_plane.cpu().numpy().astype(np.float32)
 
             app_plane = self.app_plane[idx][0].mean(0)
-            app_plane /= app_plane.max()
+            # app_plane /= app_plane.max()
             app_plane = app_plane.cpu().numpy().astype(np.float32)
 
             plane = np.concatenate([density_plane,app_plane],axis=1)
             # Fourier Planes
             density_f_space = torch.fft.fft2(self.density_plane[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
             density_f_space = torch.abs(torch.fft.fftshift(density_f_space)[0].mean(0))#.permute(1,2,0)
-            density_f_space /= density_f_space.max()
+            # density_f_space /= density_f_space.max()
             density_f_space = density_f_space.cpu().numpy().astype(np.float32)
 
             app_f_space = torch.fft.fft2(self.app_plane[idx]) #rfft2 applies the fourier transform to the last 2 dimensions
             app_f_space = torch.abs(torch.fft.fftshift(app_f_space)[0].mean(0))#.permute(1,2,0)
-            app_f_space /= app_f_space.max()
+            # app_f_space /= app_f_space.max()
             app_f_space = app_f_space.cpu().numpy().astype(np.float32)
 
             f_plane = np.concatenate([density_f_space,app_f_space],axis=1)
 
-            lines.append(line)
-            f_lines.append(f_line)
-            planes.append(plane)
-            f_planes.append(f_plane)
+            lines.append(map_to_visualize(line))
+            f_lines.append(map_to_visualize(f_line))
+            planes.append(map_to_visualize(plane))
+            f_planes.append(map_to_visualize(f_plane))
 
         return lines,f_lines,planes,f_planes
 
@@ -344,3 +347,69 @@ class FourierTensorVMSplit(TensorVMSplit):
             filter_kernel = create_circle_array(self.gridSize[mat_id_1].item(), self.gridSize[mat_id_0].item(),
                                                r_ratio=self.frequency_cap_density[i].item()).to(self.gridSize.device)
             setattr(self,f'filtering_kernel_{self.vecMode[i]}',filter_kernel)
+
+    @torch.no_grad()
+    def up_sampling_Fourier_VM(self, plane_coef, line_coef, res_target,plane_capped,line_capped):
+
+        for i in range(len(self.vecMode)):
+            vec_id = self.vecMode[i]
+            mat_id_0, mat_id_1 = self.matMode[i]
+            plane_coef[i] = torch.nn.Parameter(
+                F.interpolate(plane_capped[i].data, size=(res_target[mat_id_1], res_target[mat_id_0]), mode='bilinear',
+                              align_corners=True))
+            line_coef[i] = torch.nn.Parameter(
+                F.interpolate(line_capped[i].data, size=(res_target[vec_id], 1), mode='bilinear', align_corners=True))
+
+
+        return plane_coef, line_coef
+
+    @torch.no_grad()
+    def upsample_volume_grid(self, res_target):
+        self.fourier_cap()
+        self.app_plane, self.app_line = self.up_sampling_Fourier_VM(self.app_plane, self.app_line, res_target,self.app_planes_capped,self.app_line_capped)
+        self.density_plane, self.density_line = self.up_sampling_Fourier_VM(self.density_plane, self.density_line, res_target,self.density_planes_capped,self.density_line_capped)
+
+        self.update_stepSize(res_target)
+        print(f'upsamping to {res_target}')
+
+    # @torch.no_grad()
+    # def shrink(self, new_aabb):
+    #     self.fourier_cap()
+    #     print('Old grid size',self.gridSize)
+    #     print("====> shrinking ...")
+    #     xyz_min, xyz_max = new_aabb
+    #     t_l, b_r = (xyz_min - self.aabb[0]) / self.units, (xyz_max - self.aabb[0]) / self.units
+    #     # print(new_aabb, self.aabb)
+    #     # print(t_l, b_r,self.alphaMask.alpha_volume.shape)
+    #     t_l, b_r = torch.round(torch.round(t_l)).long(), torch.round(b_r).long() + 1
+    #     b_r = torch.stack([b_r, self.gridSize]).amin(0)
+    #     print(self.app_plane[0].grad)
+    #     for i in range(len(self.vecMode)):
+    #         mode0 = self.vecMode[i]
+    #         self.density_line[i] = torch.nn.Parameter(
+    #             self.density_line_capped[i].data[...,t_l[mode0]:b_r[mode0],:]
+    #         )
+    #         self.app_line[i] = torch.nn.Parameter(
+    #             self.app_line_capped[i].data[...,t_l[mode0]:b_r[mode0],:]
+    #         )
+    #         mode0, mode1 = self.matMode[i]
+    #         self.density_plane[i] = torch.nn.Parameter(
+    #             self.density_planes_capped[i].data[...,t_l[mode1]:b_r[mode1],t_l[mode0]:b_r[mode0]]
+    #         )
+    #         self.app_plane[i] = torch.nn.Parameter(
+    #             self.app_plane[i].data[...,t_l[mode1]:b_r[mode1],t_l[mode0]:b_r[mode0]]
+    #         )
+
+    #     print(self.app_plane[0].grad)
+    #     raise ValueError("stops")
+    #     if not torch.all(self.alphaMask.gridSize == self.gridSize):
+    #         t_l_r, b_r_r = t_l / (self.gridSize-1), (b_r-1) / (self.gridSize-1)
+    #         correct_aabb = torch.zeros_like(new_aabb)
+    #         correct_aabb[0] = (1-t_l_r)*self.aabb[0] + t_l_r*self.aabb[1]
+    #         correct_aabb[1] = (1-b_r_r)*self.aabb[0] + b_r_r*self.aabb[1]
+    #         print("aabb", new_aabb, "\ncorrect aabb", correct_aabb)
+    #         new_aabb = correct_aabb
+
+    #     newSize = b_r - t_l
+    #     self.aabb = new_aabb
+    #     self.update_stepSize((newSize[0], newSize[1], newSize[2]))

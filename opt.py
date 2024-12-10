@@ -134,7 +134,7 @@ def config_parser(cmd=None):
     # Fourier options
     parser.add_argument("--increase_feature_cap_every", type=int, default=-1,
                         help='Increase the frequency_cap every certain number of iterations')
-    parser.add_argument("--increase_frequency_cap_until", type=int, default=10_000,
+    parser.add_argument("--increase_frequency_cap_until", type=int, default=30_000,
                         help='Increase the frequency_cap until a certain number of iterations')
     parser.add_argument("--number_of_views", type=int, default=-1,
                         help='Number of views used')
@@ -142,6 +142,7 @@ def config_parser(cmd=None):
     parser.add_argument("--color_clip", type=float, default=100.0)
     parser.add_argument("--depth_cap", type=float, default=0.0,
                         help='cap to apply depth loss')
+    parser.add_argument("--gradient_scaling", type=int, default=0)
 
 
     if cmd is not None:

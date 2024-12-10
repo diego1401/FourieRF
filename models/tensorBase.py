@@ -5,6 +5,20 @@ from .sh import eval_sh_bases
 import numpy as np
 import time
 
+# Code from :https://gradient-scaling.github.io/
+
+class GradientScaler(torch.autograd.Function):
+  @staticmethod
+  def forward(ctx, colors, sigmas, ray_dist):
+    ctx.save_for_backward(ray_dist)
+    return colors, sigmas, ray_dist
+  @staticmethod
+  def backward(ctx, grad_output_colors, grad_output_sigmas, grad_output_ray_dist):
+    (ray_dist,) = ctx.saved_tensors
+    scaling = torch.square(ray_dist).clamp(0, 1)
+    return grad_output_colors * scaling.unsqueeze(-1), grad_output_sigmas * scaling, grad_output_ray_dist
+
+mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
 
 def positional_encoding(positions, freqs):
     
@@ -34,7 +48,7 @@ def SHRender(xyz_sampled, viewdirs, features):
 def RGBRender(xyz_sampled, viewdirs, features):
 
     rgb = features
-    return torch.sigmoid(rgb)
+    return torch.relu(rgb)
 
 class AlphaGridMask(torch.nn.Module):
     def __init__(self, device, aabb, alpha_volume):
@@ -55,7 +69,6 @@ class AlphaGridMask(torch.nn.Module):
 
     def normalize_coord(self, xyz_sampled):
         return (xyz_sampled-self.aabb[0]) * self.invgridSize - 1
-
 
 class MLPRender_Fea(torch.nn.Module):
     def __init__(self,inChanel, viewpe=6, feape=6, featureC=128):
@@ -88,22 +101,19 @@ class MLPRender_Fea_No_View_Dependence(torch.nn.Module):
     def __init__(self,inChanel, viewpe=6, feape=6, featureC=128):
         super(MLPRender_Fea_No_View_Dependence, self).__init__()
 
-        self.in_mlpC = inChanel
-        layer1 = torch.nn.Linear(self.in_mlpC, featureC)
-        layer2 = torch.nn.Linear(featureC, featureC)
-        # layer3 = torch.nn.Linear(featureC, featureC)
-        # layer4 = torch.nn.Linear(featureC, featureC)
+        self.harmonics_to_feat = torch.nn.Linear(9, featureC)
+        self.mlp = torch.nn.Sequential(torch.nn.SiLU(), 
+                                    torch.nn.Linear(inChanel,featureC))
         last_layer = torch.nn.Linear(featureC,3)
-        self.mlp = torch.nn.Sequential(layer1, torch.nn.ReLU(inplace=True), 
-                                       layer2, torch.nn.ReLU(inplace=True), 
-                                       last_layer,
-                                       torch.nn.Sigmoid())
-        torch.nn.init.constant_(self.mlp[-2].bias, 0)
+        self.to_color = torch.nn.Sequential(torch.nn.SiLU(), 
+                                            last_layer, 
+                                            torch.nn.Sigmoid())
         
     def forward(self, pts, viewdirs, features):
-        rgb = self.mlp(features)
+        feat_dir = self.harmonics_to_feat(eval_sh_bases(2, viewdirs))
+        rgb = self.to_color(self.mlp(features) + feat_dir)
         return rgb
-
+    
 class MLPRender_PE(torch.nn.Module):
     def __init__(self,inChanel, viewpe=6, pospe=6, featureC=128):
         super(MLPRender_PE, self).__init__()
@@ -154,14 +164,12 @@ class MLPRender(torch.nn.Module):
 
         return rgb
 
-
-
 class TensorBase(torch.nn.Module):
     def __init__(self, aabb, gridSize, device, density_n_comp = 8, appearance_n_comp = 24, app_dim = 27,
                     shadingMode = 'MLP_PE', alphaMask = None, near_far=[2.0,6.0],
                     density_shift = -10, alphaMask_thres=0.001, distance_scale=25, rayMarch_weight_thres=0.0001,
                     pos_pe = 6, view_pe = 6, fea_pe = 6, featureC=128, step_ratio=2.0,
-                    fea2denseAct = 'softplus',density_clip=100.0, color_clip=100.0):
+                    fea2denseAct = 'softplus',density_clip=100.0, color_clip=100.0,gradient_scaling=False):
         super(TensorBase, self).__init__()
 
         self.density_n_comp = density_n_comp
@@ -179,6 +187,7 @@ class TensorBase(torch.nn.Module):
 
         self.near_far = near_far
         self.step_ratio = step_ratio
+        self.gradient_scaling = gradient_scaling
 
 
         self.update_stepSize(gridSize)
@@ -265,7 +274,8 @@ class TensorBase(torch.nn.Module):
             'pos_pe': self.pos_pe,
             'view_pe': self.view_pe,
             'fea_pe': self.fea_pe,
-            'featureC': self.featureC
+            'featureC': self.featureC,
+            'gradient_scaling': self.gradient_scaling
         }
 
     def save(self, path):
@@ -472,6 +482,9 @@ class TensorBase(torch.nn.Module):
             valid_rgbs = self.renderModule(xyz_sampled[app_mask], viewdirs[app_mask], app_features)
             rgb[app_mask] = valid_rgbs
 
+        if self.gradient_scaling:
+            rgb, sigma, z_vals = GradientScaler.apply(rgb, sigma, z_vals)
+
         acc_map = torch.sum(weight, -1)
         rgb_map = torch.sum(weight[..., None] * rgb, -2)
 
@@ -480,10 +493,11 @@ class TensorBase(torch.nn.Module):
 
         
         # rgb_map = rgb_map.clamp(0,1)
+        
 
-        # with torch.no_grad():
-        depth_map = torch.sum(weight * z_vals, -1)
-        depth_map = depth_map + (1. - acc_map) * rays_chunk[..., -1]
+        with torch.no_grad():
+            depth_map = torch.sum(weight * z_vals, -1)
+            depth_map = depth_map + (1. - acc_map) * rays_chunk[..., -1]
         
         return rgb_map, depth_map # rgb, sigma, alpha, weight, bg_weight
 

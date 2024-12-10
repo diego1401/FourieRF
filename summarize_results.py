@@ -51,31 +51,39 @@ def write_latex_lines(metrics, means):
             methods[scene][view] = metric
     
     latex_lines = []
-    for method, views in methods.items():
-        line = f"{method} &"
+    complete_list = ['fortress', 'room', 'horns', 'orchids', 'leaves', 'fern','trex']
+    for view in ['3','6','9']:
         for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
-            for view in ['3','6','9']:
+            line = f" & {['PSNR','SSIM','LPIPS'][metric_index]} &"
+            for method in complete_list:
+                views = methods[method]
+            # for method, views in methods.items():
+                # line+ = f"{method} &"
                 if view in views:
                     metric = views[view][metric_index]
                     line += f" {metric:.3f} &"
                 else:
                     line += " - &"
-        latex_lines.append(line.strip('&') + " \\\\")
+
+            metric = means[view][metric_index]
+            line += f" {metric:.3f} &"
+            latex_lines.append(line.strip('&') + " \\\\")
+        latex_lines.append("\\hline")
     
     latex_lines.append("\\hline")
-    mean_line = "Mean &"
-    for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
-        for view in ['3','6','9']:
-            if view in means:
-                metric = means[view][metric_index]
-                mean_line += f" {metric:.3f} &"
-            else:
-                mean_line += " - &"
-    latex_lines.append(mean_line.strip('&') + " \\\\")
+    # mean_line = "Mean &"
+    # for metric_index in range(3):  # Iterate over PSNR, SSIM, l_a, l_v
+    #     for view in ['3','6','9']:
+    #         if view in means:
+    #             metric = means[view][metric_index]
+    #             mean_line += f" {metric:.3f} &"
+    #         else:
+    #             mean_line += " - &"
+    # latex_lines.append(mean_line.strip('&') + " \\\\")
     
     return latex_lines
 
-root_directory = 'log_no_upsampling'  # Replace with your root directory
+root_directory = 'results_no_more_floaters'  # Replace with your root directory
 metrics = collect_metrics(root_directory)
 means = compute_mean(metrics)
 latex_lines = write_latex_lines(metrics,means)

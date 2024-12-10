@@ -46,7 +46,7 @@ def export_mesh(args):
     tensorf.load(ckpt)
 
     alpha,_ = tensorf.getDenseAlpha()
-    convert_sdf_samples_to_ply(alpha.cpu(), f'{args.ckpt[:-3]}.ply',bbox=tensorf.aabb.cpu(), level=0.005)
+    convert_sdf_samples_to_ply(alpha.cpu(), f'{args.ckpt[:-3]}.ply',bbox=tensorf.aabb.cpu(), level=0.06)
 
 
 @torch.no_grad()
@@ -138,7 +138,7 @@ def reconstruction(args):
                     density_n_comp=n_lamb_sigma, appearance_n_comp=n_lamb_sh, app_dim=args.data_dim_color, near_far=near_far,
                     shadingMode=args.shadingMode, alphaMask_thres=args.alpha_mask_thre, density_shift=args.density_shift, distance_scale=args.distance_scale,
                     pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct,
-                    density_clip=args.density_clip,color_clip=args.color_clip)
+                    density_clip=args.density_clip,color_clip=args.color_clip,gradient_scaling=args.gradient_scaling)
 
 
     grad_vars = tensorf.get_optparam_groups(args.lr_init, args.lr_basis)
@@ -149,9 +149,8 @@ def reconstruction(args):
         lr_factor = args.lr_decay_target_ratio**(1/args.n_iters)
 
     print("lr decay", args.lr_decay_target_ratio, args.lr_decay_iters)
-    
-    optimizer = torch.optim.Adam(grad_vars, betas=(0.9,0.99))
-
+    WEIGHT_DECAY=0
+    optimizer = torch.optim.AdamW(grad_vars, betas=(0.9, 0.99),weight_decay=WEIGHT_DECAY)
 
     #linear in logrithmic space
     N_voxel_list = (torch.round(torch.exp(torch.linspace(np.log(args.N_voxel_init), np.log(args.N_voxel_final), len(upsamp_list)+1))).long()).tolist()[1:]
@@ -191,6 +190,9 @@ def reconstruction(args):
         #rgb_map, alphas_map, depth_map, weights, uncertainty
         rgb_map, alphas_map, depth_map, weights, uncertainty = renderer(rays_train, tensorf, chunk=args.batch_size,
                                 N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
+        
+        
+        
 
         loss = torch.mean((rgb_map - rgb_train) ** 2)
         total_loss = loss.clone()
@@ -247,8 +249,8 @@ def reconstruction(args):
 
         if iteration in update_AlphaMask_list:
 
-            if reso_cur[0] * reso_cur[1] * reso_cur[2]<256**3:# update volume resolution
-                reso_mask = reso_cur
+            # if reso_cur[0] * reso_cur[1] * reso_cur[2]<256**3:# update volume resolution
+            reso_mask = reso_cur
             new_aabb = tensorf.updateAlphaMask(tuple(reso_mask))
             if iteration == update_AlphaMask_list[0]:
                 tensorf.shrink(new_aabb)
@@ -263,12 +265,13 @@ def reconstruction(args):
                 trainingSampler = SimpleSampler(allrgbs.shape[0], args.batch_size)
             if is_fourier_model: tensorf.update_filters()
 
-
         if iteration in upsamp_list:
             n_voxels = N_voxel_list.pop(0)
             reso_cur = N_to_reso(n_voxels, tensorf.aabb)
             nSamples = min(args.nSamples, cal_n_samples(reso_cur,args.step_ratio))
             tensorf.upsample_volume_grid(reso_cur)
+
+        if iteration in upsamp_list or iteration in update_AlphaMask_list:
 
             if args.lr_upsample_reset:
                 print("reset lr to initial")
@@ -276,7 +279,7 @@ def reconstruction(args):
             else:
                 lr_scale = args.lr_decay_target_ratio ** (iteration / args.n_iters)
             grad_vars = tensorf.get_optparam_groups(args.lr_init*lr_scale, args.lr_basis*lr_scale)
-            optimizer = torch.optim.Adam(grad_vars, betas=(0.9, 0.99))
+            optimizer = torch.optim.AdamW(grad_vars, betas=(0.9, 0.98),weight_decay=WEIGHT_DECAY)
             if is_fourier_model: tensorf.update_filters()
 
         if (args.increase_feature_cap_every> 0) and is_fourier_model:

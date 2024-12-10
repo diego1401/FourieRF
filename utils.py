@@ -5,7 +5,7 @@ import torchvision.transforms as T
 import torch.nn.functional as F
 import scipy.signal
 
-mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
+
 
 
 def visualize_depth_numpy(depth, minmax=None, cmap=cv2.COLORMAP_JET):
