@@ -2,7 +2,8 @@
 ## [Project page](https://www.lix.polytechnique.fr/~gomez/FourieRF/index.html) |  [Paper (Coming Soon)]
 This repository contains a pytorch implementation for the paper: [FourieRF: Few-Shot NeRFs via Progressive Fourier Frequency Control]. We present a simple yet efficient approach to tackle the few-shot NeRF problem. This repository is built on top of the code base introduced by the paper [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517).
 
-https://www.lix.polytechnique.fr/~gomez/FourieRF/static/videos/orchids_6_0.mp4
+
+https://github.com/user-attachments/assets/96d07c30-67c4-459c-9c38-385bff2b1672
 
 ## Installation
 
