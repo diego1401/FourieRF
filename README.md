@@ -4,7 +4,9 @@ This repository contains a pytorch implementation for the paper: [FourieRF: Few-
 
 
 
-https://github.com/user-attachments/assets/083fa6c2-958f-482c-bd44-81ee0830ff3b
+
+https://github.com/user-attachments/assets/ca02d2e8-a6cb-4e1a-84d0-8c59cd6f76eb
+
 
 
 
