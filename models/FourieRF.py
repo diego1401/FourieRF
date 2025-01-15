@@ -40,7 +40,7 @@ def fourier_on_lines(lines,frequency_cap):
 class TensorFourierCP(TensorCP):
     def __init__(self, aabb, gridSize, device, **kargs):
         super(TensorFourierCP, self).__init__(aabb, gridSize, device, **kargs)
-        self.max_freq = 1.0
+        self.max_freq = kargs['max_freq']
         # Fourier Frequency Handler
         self.density_clip = kargs['density_clip']
         self.color_clip = kargs['color_clip']
@@ -182,7 +182,7 @@ def fourier_on_planes(planes,filters:list):
 class FourierTensorVMSplit(TensorVMSplit):
     def __init__(self, aabb, gridSize, device, **kargs):
         super(FourierTensorVMSplit, self).__init__(aabb, gridSize, device, **kargs)
-        self.max_freq = 1.0
+        self.max_freq = kargs['max_freq']
         # Fourier Frequency Handler
         self.density_clip = kargs['density_clip']
         self.color_clip = kargs['color_clip']

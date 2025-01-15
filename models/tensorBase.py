@@ -169,9 +169,10 @@ class TensorBase(torch.nn.Module):
                     shadingMode = 'MLP_PE', alphaMask = None, near_far=[2.0,6.0],
                     density_shift = -10, alphaMask_thres=0.001, distance_scale=25, rayMarch_weight_thres=0.0001,
                     pos_pe = 6, view_pe = 6, fea_pe = 6, featureC=128, step_ratio=2.0,
-                    fea2denseAct = 'softplus',density_clip=100.0, color_clip=100.0,gradient_scaling=False):
+                    fea2denseAct = 'softplus',density_clip=100.0, color_clip=100.0,gradient_scaling=False, max_freq=1.0):
         super(TensorBase, self).__init__()
 
+        self.max_freq = max_freq
         self.density_n_comp = density_n_comp
         self.app_n_comp = appearance_n_comp
         self.app_dim = app_dim
@@ -275,7 +276,8 @@ class TensorBase(torch.nn.Module):
             'view_pe': self.view_pe,
             'fea_pe': self.fea_pe,
             'featureC': self.featureC,
-            'gradient_scaling': self.gradient_scaling
+            'gradient_scaling': self.gradient_scaling,
+            'max_freq':self.max_freq
         }
 
     def save(self, path):
@@ -495,9 +497,9 @@ class TensorBase(torch.nn.Module):
         # rgb_map = rgb_map.clamp(0,1)
         
 
-        with torch.no_grad():
-            depth_map = torch.sum(weight * z_vals, -1)
-            depth_map = depth_map + (1. - acc_map) * rays_chunk[..., -1]
+        # with torch.no_grad():
+        depth_map = torch.sum(weight * z_vals, -1)
+        depth_map = depth_map + (1. - acc_map) * rays_chunk[..., -1]
         
         return rgb_map, depth_map # rgb, sigma, alpha, weight, bg_weight
 

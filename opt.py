@@ -24,7 +24,7 @@ def config_parser(cmd=None):
 
     # loader options
     parser.add_argument("--batch_size", type=int, default=4096)
-    parser.add_argument("--n_iters", type=int, default=30000)
+    parser.add_argument("--n_iters", type=int, default=10000)
 
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff', 'nsvf', 'dtu','tankstemple', 'own_data'])
@@ -38,7 +38,7 @@ def config_parser(cmd=None):
                         help='learning rate')
     parser.add_argument("--lr_decay_iters", type=int, default=30_000,
                         help = 'number of iterations the lr will decay to the target ratio; -1 will set it to n_iters')
-    parser.add_argument("--lr_decay_target_ratio", type=float, default=0.1,
+    parser.add_argument("--lr_decay_target_ratio", type=float, default=1.0,
                         help='the target decay ratio; after decay_iters inital lr decays to lr*ratio')
     parser.add_argument("--lr_upsample_reset", type=int, default=1,
                         help='reset lr to inital after upsampling')
@@ -73,7 +73,7 @@ def config_parser(cmd=None):
                         help='shift density in softplus; making density = 0  when feature == 0')
                         
     # network decoder
-    parser.add_argument("--shadingMode", type=str, default="MLP_PE",
+    parser.add_argument("--shadingMode", type=str, default="MLP_Fea_No_View_Dependence",
                         help='which shading mode to use')
     parser.add_argument("--pos_pe", type=int, default=6,
                         help='number of pe for pos')
@@ -132,17 +132,22 @@ def config_parser(cmd=None):
                         help='frequency of visualize the image')
     
     # Fourier options
-    parser.add_argument("--increase_feature_cap_every", type=int, default=-1,
+    parser.add_argument("--increase_feature_cap_every", type=int, default=1,
                         help='Increase the frequency_cap every certain number of iterations')
     parser.add_argument("--increase_frequency_cap_until", type=int, default=30_000,
                         help='Increase the frequency_cap until a certain number of iterations')
     parser.add_argument("--number_of_views", type=int, default=-1,
                         help='Number of views used')
-    parser.add_argument("--density_clip", type=float, default=100.0)
-    parser.add_argument("--color_clip", type=float, default=100.0)
+    parser.add_argument("--density_clip", type=float, default=100.0, help='In percentages of parameters used, so 1 is using 1 percent of available parameters')
+    parser.add_argument("--color_clip", type=float, default=100.0, help='In percentages of parameters used, so 1 is using 1 percent of available parameters')
+    parser.add_argument("--max_freq", type=float, default=1.0)
+
+
+    # Optional Flags not used for official tests
     parser.add_argument("--depth_cap", type=float, default=0.0,
-                        help='cap to apply depth loss')
-    parser.add_argument("--gradient_scaling", type=int, default=0)
+                        help='cap to apply depth loss, this can help if there are too many big floaters in front of the camera. Akin to FreeNeRFs occlusion regularization.')
+    parser.add_argument("--gradient_scaling", type=int, default=0
+                        ,help="This is from the Floaters No Mores paper, it's a 'free' way to remove even more floaters") #https://arxiv.org/abs/2305.02756
 
 
     if cmd is not None:

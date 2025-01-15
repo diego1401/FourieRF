@@ -138,7 +138,7 @@ def reconstruction(args):
                     density_n_comp=n_lamb_sigma, appearance_n_comp=n_lamb_sh, app_dim=args.data_dim_color, near_far=near_far,
                     shadingMode=args.shadingMode, alphaMask_thres=args.alpha_mask_thre, density_shift=args.density_shift, distance_scale=args.distance_scale,
                     pos_pe=args.pos_pe, view_pe=args.view_pe, fea_pe=args.fea_pe, featureC=args.featureC, step_ratio=args.step_ratio, fea2denseAct=args.fea2denseAct,
-                    density_clip=args.density_clip,color_clip=args.color_clip,gradient_scaling=args.gradient_scaling)
+                    density_clip=args.density_clip,color_clip=args.color_clip,gradient_scaling=args.gradient_scaling,max_freq=args.max_freq)
 
 
     grad_vars = tensorf.get_optparam_groups(args.lr_init, args.lr_basis)
@@ -149,7 +149,7 @@ def reconstruction(args):
         lr_factor = args.lr_decay_target_ratio**(1/args.n_iters)
 
     print("lr decay", args.lr_decay_target_ratio, args.lr_decay_iters)
-    WEIGHT_DECAY=0
+    WEIGHT_DECAY=0.0
     optimizer = torch.optim.AdamW(grad_vars, betas=(0.9, 0.99),weight_decay=WEIGHT_DECAY)
 
     #linear in logrithmic space
@@ -198,7 +198,6 @@ def reconstruction(args):
         total_loss = loss.clone()
         
         if Depth_reg_weight > 0 and depth_cap > 1e-5: #occlusion loss
-            # depth_cap += depth_delta
             mask = depth_map<depth_cap
             total_loss -= Depth_reg_weight * depth_map[mask].mean()
         if Ortho_reg_weight > 0:
