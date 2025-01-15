@@ -3,7 +3,10 @@
 This repository contains a pytorch implementation for the paper: [FourieRF: Few-Shot NeRFs via Progressive Fourier Frequency Control]. We present a simple yet efficient approach to tackle the few-shot NeRF problem. This repository is built on top of the code base introduced by the paper [TensoRF: Tensorial Radiance Fields](https://arxiv.org/abs/2203.09517).
 
 
-https://github.com/user-attachments/assets/96d07c30-67c4-459c-9c38-385bff2b1672
+
+https://github.com/user-attachments/assets/083fa6c2-958f-482c-bd44-81ee0830ff3b
+
+
 
 ## Installation
 
