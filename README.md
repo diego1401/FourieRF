@@ -34,5 +34,13 @@ python train.py --config configs/fourier_example.txt
 ## Citation
 If you find our code or paper helps, please consider citing:
 ```
-TODO
+@misc{gomez2025fourierffewshotnerfsprogressive,
+      title={FourieRF: Few-Shot NeRFs via Progressive Fourier Frequency Control}, 
+      author={Diego Gomez and Bingchen Gong and Maks Ovsjanikov},
+      year={2025},
+      eprint={2502.01405},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2502.01405}, 
+}
 ```
