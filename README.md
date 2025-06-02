@@ -15,7 +15,9 @@ https://github.com/user-attachments/assets/ca02d2e8-a6cb-4e1a-84d0-8c59cd6f76eb
 ```
 conda create -n FourieRF python=3.10 -y
 conda activate FourieRF
-pip install -r requirements.txt
+pip install torch torchvision
+pip install tqdm scikit-image opencv-python configargparse lpips imageio-ffmpeg kornia lpips tensorboard scikit-learn plyfile matplotlib
+
 ```
 
 ## Dataset
@@ -23,11 +25,11 @@ pip install -r requirements.txt
 * [Forward-facing](https://drive.google.com/drive/folders/128yBriW1IG_3NJ5Rp7APSTZsJqdJdfc1)
 
 ## Quick Start
-Correctly set the data path on the ```configs/fourier_example.txt``` file with the ``` datadir```  argument. 
+Correctly set the data path on the ```configs/fourier_blender.txt``` file with the ``` datadir```  argument. 
 The training script is in `train.py`, to train a FourieRF on the orchids scene of the forward-facing dataset:
 
 ```
-python train.py --config configs/fourier_example.txt
+python train.py --config configs/fourier_blender.txt --number_of_views 4
 ```
 
 

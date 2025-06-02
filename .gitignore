@@ -13,6 +13,5 @@ smooth_shape/*
 *.sh
 *.out
 *.tex
-*.txt
 *events*
 *.th
