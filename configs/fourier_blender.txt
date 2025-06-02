@@ -6,7 +6,7 @@ color_clip = 1.0
 
 dataset_name = blender
 datadir = ../data/nerf_synthetic/lego
-expname =  fourier_tensorf_lego_VMSplit
+expname =  fourierf_lego
 basedir = ./log
 
 n_iters = 30000
